@@ -1,3 +1,7 @@
+<!--
+SPDX-FileCopyrightText: 2026 Aaron White <w531t4@gmail.com>
+SPDX-License-Identifier: MIT
+-->
 # ESP-IDF install
 
 https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup-legacy.html
@@ -130,3 +134,8 @@ should show something like
   -c "flash verify_bank ecp5.spi ../../fpga_led_display/ulx3s-12f.bit 0" \
   -c "echo DONE" \
   -c "shutdown"
+
+# compiling code
+uvx --python 3.13 esphome run examples/vanilla.yaml
+
+x --python 3.13 esphome run examples/vanilla.yaml --device /dev/ttyUSB0

@@ -1,0 +1,10 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.esphome": true
+  },
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/.esphome": true
+  }
+}

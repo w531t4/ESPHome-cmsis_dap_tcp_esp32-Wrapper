@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 Aaron White <w531t4@gmail.com>
+# SPDX-License-Identifier: MIT
+esphome:
+  name: cmsis-dap-wrapper-test
+  friendly_name: CMSIS DAP Wrapper Test
+
+substitutions:
+  purpose_nice: CMSIS DAP Wrapper Test
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [cmsis_dap_tcp]
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+cmsis_dap_tcp:
+  message: vanilla external component is alive
+
+safe_mode:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_password
+
+ota:
+  - platform: esphome
+    password: !secret ota_password2
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password2
+  power_save_mode: none
+  fast_connect: true
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "abc Fallback Hotspot"
+    password: !secret wifi_password2
+
+captive_portal:
+# To have a "next url" for improv serial
+web_server:
