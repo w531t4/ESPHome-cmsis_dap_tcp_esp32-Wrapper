@@ -21,11 +21,47 @@ esp32:
 logger:
 
 cmsis_dap_tcp:
-  tck_pin: GPIO18
-  tms_pin: GPIO5
-  tdi_pin: GPIO23
-  tdo_pin: GPIO34
-  port: 4441
+  - id: cmsis_dap_primary
+    tck_pin: GPIO18
+    tms_pin: GPIO5
+    tdi_pin: GPIO23
+    tdo_pin: GPIO34
+    led_pin: GPIO32
+    led_active_high: false
+    port: 4441
+    io_port_write_cycles: 72
+    delay_slow_cycles: 5
+    uart_bridge:
+      tx_pin: GPIO3
+      rx_pin: GPIO1
+      port: 4442
+      uart_num: 1
+      baud_rate: 115200
+      data_bits: 8
+      parity: NONE
+      stop_bits: 1
+
+  - id: cmsis_dap_secondary
+    tck_pin: GPIO19
+    tms_pin: GPIO21
+    tdi_pin: GPIO22
+    tdo_pin: GPIO25
+    ntrst_pin: GPIO26
+    nreset_pin: GPIO27
+    led_pin: GPIO33
+    led_active_high: true
+    port: 4443
+    io_port_write_cycles: 72
+    delay_slow_cycles: 5
+    uart_bridge:
+      tx_pin: GPIO15
+      rx_pin: GPIO14
+      port: 4444
+      uart_num: 2
+      baud_rate: 115200
+      data_bits: 8
+      parity: NONE
+      stop_bits: 1
 
 safe_mode:
 

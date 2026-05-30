@@ -31,6 +31,20 @@ update wifi ssid/creds
     CONFIG_ESP_DAP_GPIO_SWDIO_TMS=5
     CONFIG_ESP_DAP_GPIO_TDI=23
     CONFIG_ESP_DAP_GPIO_TDO=34
+    CONFIG_ESP_UART_BRIDGE_ENABLED=y
+    CONFIG_ESP_UART_BRIDGE_TCP_PORT=4442
+    CONFIG_ESP_UART_BRIDGE_USE_KEEPALIVE=y
+    CONFIG_ESP_UART_BRIDGE_KEEPALIVE_TIMEOUT=10
+    CONFIG_ESP_UART_BRIDGE_UART_NUM=1
+    CONFIG_ESP_UART_BRIDGE_REMAP_PINS=y
+    CONFIG_ESP_UART_BRIDGE_TXD_PIN=25
+    CONFIG_ESP_UART_BRIDGE_RXD_PIN=26
+    CONFIG_ESP_UART_BRIDGE_BAUD_RATE=115200
+    CONFIG_ESP_UART_BRIDGE_DATA_BITS=8
+    CONFIG_ESP_UART_BRIDGE_PARITY_NONE=y
+    # CONFIG_ESP_UART_BRIDGE_PARITY_EVEN is not set
+    # CONFIG_ESP_UART_BRIDGE_PARITY_ODD is not set
+    CONFIG_ESP_UART_BRIDGE_STOP_BITS=1
 idf.py build flash
 # build openocd
 git clone git://git.code.sf.net/p/openocd/code openocd
@@ -100,7 +114,7 @@ should show something like
   -f fpga/lattice_ecp5.cfg \
   -c "adapter speed 1000" \
   -c "init" \
-  -c "pld load ecp5.pld ../../fpga_led_display/ulx3s.bit" \
+  -c "pld load ecp5.pld ../../fpga_led_display/ulx3s-12f.bit" \
   -c "shutdown"
 
 ./src/openocd -s tcl \
