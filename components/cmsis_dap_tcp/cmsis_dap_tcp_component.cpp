@@ -58,7 +58,7 @@ void CmsisDapTcpComponent::setup() {
              this->uart_bridge_task_priority_);
   }
 
-  auto *gpio_config = new (struct cmsis_dap_gpio_config){
+  this->gpio_config_ = new (struct cmsis_dap_gpio_config){
       static_cast<int>(this->tck_pin_),     static_cast<int>(this->tms_pin_),   static_cast<int>(this->tdi_pin_),
       static_cast<int>(this->tdo_pin_),     static_cast<int>(this->ntrst_pin_), static_cast<int>(this->nreset_pin_),
       static_cast<int>(this->led_pin_),
@@ -66,17 +66,16 @@ void CmsisDapTcpComponent::setup() {
       static_cast<int>(this->io_port_write_cycles_),
       static_cast<int>(this->delay_slow_cycles_),
   };
-  auto *tcp_config = new (struct cmsis_dap_tcp_config){
+  this->tcp_config_ = new (struct cmsis_dap_tcp_config){
       static_cast<int>(this->port_),
       this->keepalive_ ? 0 : 1,
       static_cast<int>(this->keepalive_timeout_),
-      gpio_config,
+      this->gpio_config_,
+      &this->task_stop_requested_,
+      &this->task_handle_,
   };
 
-  const BaseType_t result =
-      xTaskCreate(cmsis_dap_tcp_task, "cmsis_dap_tcp", this->task_stack_size_, tcp_config, this->task_priority_,
-                  &this->task_handle_);
-  if (result != pdPASS) {
+  if (!this->start_cmsis_dap_service()) {
     ESP_LOGE(TAG, "Failed to start CMSIS-DAP TCP task");
     this->mark_failed();
     return;
@@ -86,7 +85,7 @@ void CmsisDapTcpComponent::setup() {
 
   if (this->uart_bridge_enabled_) {
 #ifdef CONFIG_ESP_UART_BRIDGE_ENABLED
-    auto *uart_config = new (struct uart_bridge_config){
+    this->uart_config_ = new (struct uart_bridge_config){
         static_cast<int>(this->uart_bridge_port_),
         static_cast<int>(this->uart_bridge_keepalive_timeout_),
         static_cast<int>(this->uart_num_),
@@ -96,11 +95,10 @@ void CmsisDapTcpComponent::setup() {
         this->uart_data_bits_ == 7 ? UART_DATA_7_BITS : UART_DATA_8_BITS,
         this->uart_parity_ == 2 ? UART_PARITY_EVEN : (this->uart_parity_ == 3 ? UART_PARITY_ODD : UART_PARITY_DISABLE),
         this->uart_stop_bits_ == 2 ? UART_STOP_BITS_2 : UART_STOP_BITS_1,
+        &this->uart_bridge_task_stop_requested_,
+        &this->uart_bridge_task_handle_,
     };
-    const BaseType_t uart_result =
-        xTaskCreate(uart_bridge_task, "uart_bridge", this->uart_bridge_task_stack_size_, uart_config,
-                    this->uart_bridge_task_priority_, &this->uart_bridge_task_handle_);
-    if (uart_result != pdPASS) {
+    if (!this->start_uart_bridge_service()) {
       ESP_LOGE(TAG, "Failed to start UART bridge task");
       this->mark_failed();
       return;
@@ -131,6 +129,7 @@ void CmsisDapTcpComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Delay slow cycles: %" PRIu32, this->delay_slow_cycles_);
   ESP_LOGCONFIG(TAG, "  Task stack size: %" PRIu32, this->task_stack_size_);
   ESP_LOGCONFIG(TAG, "  Task priority: %u", this->task_priority_);
+  ESP_LOGCONFIG(TAG, "  Service switch: %s", this->cmsis_dap_switch_ != nullptr ? "enabled" : "disabled");
   if (this->uart_bridge_enabled_) {
     ESP_LOGCONFIG(TAG, "  UART bridge:");
     ESP_LOGCONFIG(TAG, "    Port: %u", this->uart_bridge_port_);
@@ -142,12 +141,77 @@ void CmsisDapTcpComponent::dump_config() {
                   this->uart_parity_ == 2 ? 'E' : (this->uart_parity_ == 3 ? 'O' : 'N'), this->uart_stop_bits_);
     ESP_LOGCONFIG(TAG, "    Task stack size: %" PRIu32, this->uart_bridge_task_stack_size_);
     ESP_LOGCONFIG(TAG, "    Task priority: %u", this->uart_bridge_task_priority_);
+    ESP_LOGCONFIG(TAG, "    Service switch: %s", this->uart_bridge_switch_ != nullptr ? "enabled" : "disabled");
   } else {
     ESP_LOGCONFIG(TAG, "  UART bridge: disabled");
   }
 }
 
 float CmsisDapTcpComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
+
+bool CmsisDapTcpComponent::start_cmsis_dap_service() {
+  this->task_stop_requested_ = 0;
+  if (this->task_handle_ != nullptr) {
+    this->task_running_ = true;
+    if (this->cmsis_dap_switch_ != nullptr)
+      this->cmsis_dap_switch_->publish_state(true);
+    return true;
+  }
+  const BaseType_t result =
+      xTaskCreate(cmsis_dap_tcp_task, "cmsis_dap_tcp", this->task_stack_size_, this->tcp_config_, this->task_priority_,
+                  &this->task_handle_);
+  this->task_running_ = result == pdPASS;
+  if (this->cmsis_dap_switch_ != nullptr)
+    this->cmsis_dap_switch_->publish_state(this->task_running_);
+  return this->task_running_;
+}
+
+void CmsisDapTcpComponent::set_cmsis_dap_service_enabled(bool enabled) {
+  if (enabled) {
+    if (!this->start_cmsis_dap_service())
+      ESP_LOGE(TAG, "Failed to start CMSIS-DAP TCP service");
+  } else {
+    this->task_stop_requested_ = 1;
+    this->task_running_ = false;
+    if (this->cmsis_dap_switch_ != nullptr)
+      this->cmsis_dap_switch_->publish_state(false);
+  }
+}
+
+bool CmsisDapTcpComponent::start_uart_bridge_service() {
+  this->uart_bridge_task_stop_requested_ = 0;
+  if (this->uart_bridge_task_handle_ != nullptr) {
+    this->uart_bridge_task_running_ = true;
+    if (this->uart_bridge_switch_ != nullptr)
+      this->uart_bridge_switch_->publish_state(true);
+    return true;
+  }
+  const BaseType_t result =
+      xTaskCreate(uart_bridge_task, "uart_bridge", this->uart_bridge_task_stack_size_, this->uart_config_,
+                  this->uart_bridge_task_priority_, &this->uart_bridge_task_handle_);
+  this->uart_bridge_task_running_ = result == pdPASS;
+  if (this->uart_bridge_switch_ != nullptr)
+    this->uart_bridge_switch_->publish_state(this->uart_bridge_task_running_);
+  return this->uart_bridge_task_running_;
+}
+
+void CmsisDapTcpComponent::set_uart_bridge_service_enabled(bool enabled) {
+  if (!this->uart_bridge_enabled_)
+    return;
+  if (enabled) {
+    if (!this->start_uart_bridge_service())
+      ESP_LOGE(TAG, "Failed to start UART bridge service");
+  } else {
+    this->uart_bridge_task_stop_requested_ = 1;
+    this->uart_bridge_task_running_ = false;
+    if (this->uart_bridge_switch_ != nullptr)
+      this->uart_bridge_switch_->publish_state(false);
+  }
+}
+
+void CmsisDapTcpServiceSwitch::write_state(bool state) { this->parent_->set_cmsis_dap_service_enabled(state); }
+
+void UartBridgeServiceSwitch::write_state(bool state) { this->parent_->set_uart_bridge_service_enabled(state); }
 
 }  // namespace cmsis_dap_tcp
 }  // namespace esphome

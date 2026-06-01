@@ -4,18 +4,22 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import esp32
-from esphome.const import CONF_ID, CONF_PORT
+from esphome.components import switch
+from esphome.const import CONF_ID, CONF_PORT, ENTITY_CATEGORY_CONFIG, ICON_POWER
 from esphome.core import CORE
 
 DEPENDENCIES = ["network"]
+AUTO_LOAD = ["switch"]
 CODEOWNERS = ["@w531t4"]
 
 IDF_COMPONENT_REPO = "https://github.com/w531t4/cmsis_dap_tcp_esp32.git"
-IDF_COMPONENT_REF = "v1.0.0"
+IDF_COMPONENT_REF = "v1.1.0"
 IDF_COMPONENT_PATH = "main"
 
 cmsis_dap_tcp_ns = cg.esphome_ns.namespace("cmsis_dap_tcp")
 CmsisDapTcpComponent = cmsis_dap_tcp_ns.class_("CmsisDapTcpComponent", cg.Component)
+CmsisDapTcpServiceSwitch = cmsis_dap_tcp_ns.class_("CmsisDapTcpServiceSwitch", switch.Switch)
+UartBridgeServiceSwitch = cmsis_dap_tcp_ns.class_("UartBridgeServiceSwitch", switch.Switch)
 
 MULTI_CONF = True
 
@@ -49,6 +53,10 @@ CONF_UART_BRIDGE_TASK_STACK_SIZE = "uart_bridge_task_stack_size"
 CONF_UART_BRIDGE_TASK_PRIORITY = "uart_bridge_task_priority"
 CONF_IO_PORT_WRITE_CYCLES = "io_port_write_cycles"
 CONF_DELAY_SLOW_CYCLES = "delay_slow_cycles"
+CONF_CMSIS_DAP_SWITCH = "cmsis_dap_switch"
+CONF_UART_BRIDGE_SWITCH = "uart_bridge_switch"
+DEFAULT_CMSIS_DAP_SWITCH_NAME = "CMSIS-DAP TCP Service"
+DEFAULT_UART_BRIDGE_SWITCH_NAME = "UART Bridge Service"
 
 UART_DATA_BITS = {
     7: 7,
@@ -75,6 +83,33 @@ def _validate_framework(config):
     return config
 
 
+def _set_default_switch_names(config):
+    config = dict(config)
+    port = config.get(CONF_PORT, 4441)
+
+    cmsis_switch = dict(config.get(CONF_CMSIS_DAP_SWITCH, {}))
+    if (
+        cmsis_switch.get("name", DEFAULT_CMSIS_DAP_SWITCH_NAME)
+        == DEFAULT_CMSIS_DAP_SWITCH_NAME
+    ):
+        cmsis_switch["name"] = f"{DEFAULT_CMSIS_DAP_SWITCH_NAME} {port}"
+    config[CONF_CMSIS_DAP_SWITCH] = cmsis_switch
+
+    if CONF_UART_BRIDGE in config:
+        uart_bridge = dict(config[CONF_UART_BRIDGE])
+        uart_port = uart_bridge.get(CONF_PORT, 4442)
+        uart_switch = dict(uart_bridge.get(CONF_UART_BRIDGE_SWITCH, {}))
+        if (
+            uart_switch.get("name", DEFAULT_UART_BRIDGE_SWITCH_NAME)
+            == DEFAULT_UART_BRIDGE_SWITCH_NAME
+        ):
+            uart_switch["name"] = f"{DEFAULT_UART_BRIDGE_SWITCH_NAME} {uart_port}"
+        uart_bridge[CONF_UART_BRIDGE_SWITCH] = uart_switch
+        config[CONF_UART_BRIDGE] = uart_bridge
+
+    return config
+
+
 def _validate_config(config):
     if CONF_UART_BRIDGE not in config:
         return config
@@ -87,6 +122,7 @@ def _validate_config(config):
 
 
 CONFIG_SCHEMA = cv.All(
+    _set_default_switch_names,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CmsisDapTcpComponent),
@@ -112,6 +148,13 @@ CONFIG_SCHEMA = cv.All(
                         "NONE", "EVEN", "ODD", upper=True
                     ),
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
+                    cv.Optional(
+                        CONF_UART_BRIDGE_SWITCH,
+                    ): switch.switch_schema(
+                        UartBridgeServiceSwitch,
+                        entity_category=ENTITY_CATEGORY_CONFIG,
+                        icon=ICON_POWER,
+                    ),
                     cv.Optional(CONF_KEEPALIVE, default=True): cv.boolean,
                     cv.Optional(CONF_KEEPALIVE_TIMEOUT, default=10): cv.int_range(
                         min=1, max=60
@@ -132,6 +175,13 @@ CONFIG_SCHEMA = cv.All(
                 min=4096, max=32768
             ),
             cv.Optional(CONF_TASK_PRIORITY, default=5): cv.int_range(min=0, max=24),
+            cv.Optional(
+                CONF_CMSIS_DAP_SWITCH,
+            ): switch.switch_schema(
+                CmsisDapTcpServiceSwitch,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                icon=ICON_POWER,
+            ),
             cv.Optional(CONF_IO_PORT_WRITE_CYCLES, default=72): cv.int_range(
                 min=0, max=100000
             ),
@@ -246,6 +296,8 @@ async def to_code(config):
     cg.add(var.set_io_port_write_cycles(config[CONF_IO_PORT_WRITE_CYCLES]))
     cg.add(var.set_delay_slow_cycles(config[CONF_DELAY_SLOW_CYCLES]))
     cg.add(var.set_led_active_high(config[CONF_LED_ACTIVE_HIGH]))
+    cmsis_switch = await switch.new_switch(config[CONF_CMSIS_DAP_SWITCH], var)
+    cg.add(var.set_cmsis_dap_switch(cmsis_switch))
 
     _add_idf_component_once()
     _set_base_sdkconfig_once(config)
@@ -274,6 +326,8 @@ async def to_code(config):
                 uart_bridge[CONF_UART_BRIDGE_TASK_PRIORITY]
             )
         )
+        uart_switch = await switch.new_switch(uart_bridge[CONF_UART_BRIDGE_SWITCH], var)
+        cg.add(var.set_uart_bridge_switch(uart_switch))
         _set_uart_bridge_sdkconfig_once(uart_bridge)
 
     if CONF_NTRST_PIN in config:
