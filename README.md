@@ -70,6 +70,7 @@ cmsis_dap_tcp:
   led_pin: GPIO32
   led_active_high: false
   port: 4441
+  service_name: CMSIS-DAP Primary
   io_port_write_cycles: 72
   delay_slow_cycles: 5
 ```
@@ -85,6 +86,7 @@ cmsis_dap_tcp:
   led_pin: GPIO32
   led_active_high: false
   port: 4441
+  service_name: CMSIS-DAP Primary
   uart_bridge:
     tx_pin: GPIO3
     rx_pin: GPIO1
@@ -98,6 +100,12 @@ cmsis_dap_tcp:
 
 The example uses ESPHome to configure Wi-Fi, API, OTA, logging, and fallback AP
 behavior.
+
+`service_name` is optional. When omitted, service switches use the default names
+`CMSIS-DAP TCP Service {port}` and `UART Bridge Service {port}`. When set, the
+CMSIS-DAP switch name uses `{service_name} {port}` and the UART bridge switch
+name uses `{service_name} UART {port}` unless `cmsis_dap_switch` or
+`uart_bridge_switch` explicitly sets a switch name.
 
 ## UART Bridge
 

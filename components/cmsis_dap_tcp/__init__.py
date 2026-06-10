@@ -55,6 +55,7 @@ CONF_IO_PORT_WRITE_CYCLES = "io_port_write_cycles"
 CONF_DELAY_SLOW_CYCLES = "delay_slow_cycles"
 CONF_CMSIS_DAP_SWITCH = "cmsis_dap_switch"
 CONF_UART_BRIDGE_SWITCH = "uart_bridge_switch"
+CONF_SERVICE_NAME = "service_name"
 DEFAULT_CMSIS_DAP_SWITCH_NAME = "CMSIS-DAP TCP Service"
 DEFAULT_UART_BRIDGE_SWITCH_NAME = "UART Bridge Service"
 
@@ -86,13 +87,18 @@ def _validate_framework(config):
 def _set_default_switch_names(config):
     config = dict(config)
     port = config.get(CONF_PORT, 4441)
+    service_name = config.get(CONF_SERVICE_NAME)
 
     cmsis_switch = dict(config.get(CONF_CMSIS_DAP_SWITCH, {}))
     if (
         cmsis_switch.get("name", DEFAULT_CMSIS_DAP_SWITCH_NAME)
         == DEFAULT_CMSIS_DAP_SWITCH_NAME
     ):
-        cmsis_switch["name"] = f"{DEFAULT_CMSIS_DAP_SWITCH_NAME} {port}"
+        cmsis_switch["name"] = (
+            f"{service_name} {port}"
+            if service_name is not None
+            else f"{DEFAULT_CMSIS_DAP_SWITCH_NAME} {port}"
+        )
     config[CONF_CMSIS_DAP_SWITCH] = cmsis_switch
 
     if CONF_UART_BRIDGE in config:
@@ -103,7 +109,11 @@ def _set_default_switch_names(config):
             uart_switch.get("name", DEFAULT_UART_BRIDGE_SWITCH_NAME)
             == DEFAULT_UART_BRIDGE_SWITCH_NAME
         ):
-            uart_switch["name"] = f"{DEFAULT_UART_BRIDGE_SWITCH_NAME} {uart_port}"
+            uart_switch["name"] = (
+                f"{service_name} UART {uart_port}"
+                if service_name is not None
+                else f"{DEFAULT_UART_BRIDGE_SWITCH_NAME} {uart_port}"
+            )
         uart_bridge[CONF_UART_BRIDGE_SWITCH] = uart_switch
         config[CONF_UART_BRIDGE] = uart_bridge
 
@@ -168,6 +178,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_PORT, default=4441): cv.port,
+            cv.Optional(CONF_SERVICE_NAME): cv.string_strict,
             cv.Optional(CONF_PACKET_SIZE, default=1024): cv.int_range(min=64, max=4096),
             cv.Optional(CONF_KEEPALIVE, default=True): cv.boolean,
             cv.Optional(CONF_KEEPALIVE_TIMEOUT, default=5): cv.int_range(min=1, max=60),
