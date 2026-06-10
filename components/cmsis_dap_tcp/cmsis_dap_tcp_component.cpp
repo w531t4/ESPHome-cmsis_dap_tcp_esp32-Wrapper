@@ -179,6 +179,7 @@ void CmsisDapTcpComponent::set_cmsis_dap_service_enabled(bool enabled) {
 }
 
 bool CmsisDapTcpComponent::start_uart_bridge_service() {
+#ifdef CONFIG_ESP_UART_BRIDGE_ENABLED
   this->uart_bridge_task_stop_requested_ = 0;
   if (this->uart_bridge_task_handle_ != nullptr) {
     this->uart_bridge_task_running_ = true;
@@ -193,6 +194,12 @@ bool CmsisDapTcpComponent::start_uart_bridge_service() {
   if (this->uart_bridge_switch_ != nullptr)
     this->uart_bridge_switch_->publish_state(this->uart_bridge_task_running_);
   return this->uart_bridge_task_running_;
+#else
+  this->uart_bridge_task_running_ = false;
+  if (this->uart_bridge_switch_ != nullptr)
+    this->uart_bridge_switch_->publish_state(false);
+  return false;
+#endif
 }
 
 void CmsisDapTcpComponent::set_uart_bridge_service_enabled(bool enabled) {
